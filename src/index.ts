@@ -18,6 +18,7 @@ import {
 } from "./voice/manager.js";
 import { checkHealth } from "./tts/voicevox.js";
 import { closeDatabase } from "./db/database.js";
+import { initStyleMap } from "./emotion/style-map.js";
 
 const client = new Client({
   intents: [
@@ -130,6 +131,7 @@ client.once(Events.ClientReady, async (readyClient) => {
   const healthy = await checkHealth();
   if (healthy) {
     console.log("[ready] VOICEVOX: 接続OK");
+    await initStyleMap();
   } else {
     console.warn("[ready] VOICEVOX: 接続失敗 — 読み上げが動作しません");
   }

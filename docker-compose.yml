@@ -1,0 +1,17 @@
+services:
+  voicevox:
+    image: voicevox/voicevox_engine:latest
+    ports:
+      - "50021:50021"
+    restart: unless-stopped
+
+  bot:
+    build: .
+    depends_on:
+      - voicevox
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - VOICEVOX_URL=http://voicevox:50021
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped

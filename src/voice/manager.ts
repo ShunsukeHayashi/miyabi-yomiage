@@ -12,8 +12,10 @@ import {
 import type { VoiceBasedChannel } from "discord.js";
 import { textToSpeech, bufferToReadable } from "../tts/voicevox.js";
 import { filterText, shouldSkip } from "../text/filter.js";
-import { getServerSettings, getUserSettings, getDictionary } from "../db/database.js";
-import { Readable } from "node:stream";
+import { getServerSettings, getUserSettings, getDictionary, getEmotionEnabled } from "../db/database.js";
+import { analyzeEmotion } from "../emotion/analyzer.js";
+import { resolveStyleId } from "../emotion/style-map.js";
+// node:stream is used by bufferToReadable in tts/voicevox.ts
 
 type QueueItem = {
   text: string;
@@ -181,7 +183,7 @@ export async function enqueueMessage(
   const userSettings = userId ? getUserSettings(guildId, userId) : null;
 
   // 話者・速度の決定（ユーザー設定 > サーバー設定）
-  const speaker = userSettings?.speaker_id ?? serverSettings.speaker_id;
+  const baseSpeaker = userSettings?.speaker_id ?? serverSettings.speaker_id;
   const speed = userSettings?.speed ?? serverSettings.speed;
 
   // テキスト前処理
@@ -197,6 +199,16 @@ export async function enqueueMessage(
   // 最大文字数チェック
   if (processedText.length > serverSettings.max_length) {
     processedText = processedText.slice(0, serverSettings.max_length) + "...以下省略";
+  }
+
+  // 感情分析 → スタイル自動切替
+  let speaker = baseSpeaker;
+  const emotionEnabled = userId ? getEmotionEnabled(guildId, userId) : true;
+  if (emotionEnabled) {
+    const emotion = analyzeEmotion(processedText);
+    if (emotion !== "normal") {
+      speaker = resolveStyleId(baseSpeaker, emotion);
+    }
   }
 
   // キューサイズ制限（メモリ保護）

@@ -1,7 +1,7 @@
 {
   "name": "miyabi-yomiage",
-  "version": "0.1.0",
-  "description": "Discord Voice Channel TTS Bot powered by VOICEVOX",
+  "version": "1.0.0",
+  "description": "Discord Voice Channel TTS Bot powered by VOICEVOX — Emotion-aware style switching",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -9,7 +9,8 @@
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy-commands": "tsx src/deploy-commands.ts"
   },
   "dependencies": {
     "@discordjs/opus": "^0.9.0",
@@ -21,13 +22,31 @@
     "sodium-native": "^4.3.1"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },
   "engines": {
     "node": ">=20.0.0"
-  }
+  },
+  "license": "MIT",
+  "author": "Shunsuke Hayashi",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ShunsukeHayashi/miyabi-yomiage.git"
+  },
+  "keywords": [
+    "discord",
+    "voicevox",
+    "tts",
+    "text-to-speech",
+    "discord-bot",
+    "emotion-analysis",
+    "japanese"
+  ]
 }

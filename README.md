@@ -1,125 +1,153 @@
 # miyabi-yomiage
 
-Discord ボイスチャンネルでテキストメッセージを自動読み上げする Bot です。[VOICEVOX](https://voicevox.hiroshiba.jp/) をTTSエンジンとして使用します。
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-%3E%3D20-green.svg)](https://nodejs.org/)
+[![Discord.js](https://img.shields.io/badge/discord.js-v14-5865F2.svg)](https://discord.js.org/)
+[![VOICEVOX](https://img.shields.io/badge/VOICEVOX-TTS-ff69b4.svg)](https://voicevox.hiroshiba.jp/)
 
-## 機能
+Discord ボイスチャンネルでテキストを VOICEVOX で読み上げる Bot。
+**感情分析によるスタイル自動切替** で、メッセージの感情に応じて声のトーンが変わります。
 
-- テキストチャンネルのメッセージをボイスチャンネルで自動読み上げ
-- VOICEVOX の多彩な話者（ずんだもん、四国めたん、春日部つむぎ等）に対応
-- サーバーごと・ユーザーごとに話者と速度をカスタマイズ
-- 読み上げ辞書（単語 → 読み）をサーバーごとに管理
-- VC に人がいれば起動時に自動参加、空になったら自動退出
-- URL、コードブロック、スポイラー、メンション等の自動フィルタリング
+## 他の VOICEVOX Bot との違い
 
-## 必要なもの
+| 機能 | miyabi-yomiage | 一般的な Bot |
+|------|:-:|:-:|
+| 感情分析 → スタイル自動切替 | **対応** | - |
+| ユーザー別話者設定 | 対応 | 一部対応 |
+| サーバー辞書 | 対応 | 一部対応 |
+| Docker Compose 一発起動 | 対応 | - |
+| 自動参加 / 自動退出 | 対応 | 一部対応 |
+| キュー管理 (/skip, /queue) | 対応 | - |
 
-- **Node.js** 20 以上
-- **VOICEVOX** エンジン（ローカル起動、デフォルト `http://localhost:50021`）
-- **Discord Bot Token**（[Discord Developer Portal](https://discord.com/developers/applications) で作成）
-- **FFmpeg**（`brew install ffmpeg` / `apt install ffmpeg`）
+## 感情分析
 
-## セットアップ
+テキストのキーワード・絵文字・パターンからスコアリングし、感情を自動判定します。
+外部 API 不要、完全ローカル処理。
 
-### 1. インストール
+```
+「今日は楽しいね！😊」  → happy  → ずんだもん（あまあま）
+「ふざけるな💢」        → angry  → ずんだもん（ツンツン）
+「悲しい...😢」        → sad    → ずんだもん（泣き）
+「ここだけの話...」     → whisper → ずんだもん（ささやき）
+```
+
+対応感情: `normal` / `happy` / `angry` / `sad` / `whisper`
+
+VOICEVOX の各キャラクターが持つスタイルバリエーション（あまあま、ツンツン等）に自動マッピングします。
+`/speakers` API から起動時に動的構築するため、カスタム音声モデルにも対応します。
+
+## アーキテクチャ
+
+```
+Discord Message
+      │
+      ▼
+  テキスト前処理 (URL除去, 辞書適用, 文字数制限)
+      │
+      ▼
+  感情分析 (ルールベース, スコアリング)
+      │
+      ▼
+  スタイル解決 (baseSpeaker + emotion → targetSpeaker)
+      │
+      ▼
+  VOICEVOX API (/audio_query → /synthesis)
+      │
+      ▼
+  AudioPlayer → ボイスチャンネル再生
+```
+
+## クイックスタート
+
+### ローカル起動
 
 ```bash
+# 1. VOICEVOX エンジンを起動
+# https://voicevox.hiroshiba.jp/ からダウンロード
+
+# 2. クローン & セットアップ
 git clone https://github.com/ShunsukeHayashi/miyabi-yomiage.git
 cd miyabi-yomiage
 npm install
-```
 
-### 2. 環境変数
-
-```bash
+# 3. 環境変数
 cp .env.example .env
-```
+# .env に DISCORD_TOKEN を設定
 
-`.env` を編集して Discord Bot Token と Client ID を設定:
-
-```
-DISCORD_TOKEN=your_discord_bot_token_here
-CLIENT_ID=your_client_id_here
-```
-
-### 3. VOICEVOX 起動
-
-[VOICEVOX](https://voicevox.hiroshiba.jp/) をダウンロードして起動します。API サーバーが `http://localhost:50021` で待ち受けます。
-
-### 4. スラッシュコマンド登録
-
-```bash
+# 4. ビルド & 起動
 npm run build
-node dist/deploy-commands.js
+npm start
 ```
 
-### 5. Bot 起動
+### Docker Compose (推奨)
+
+VOICEVOX エンジンと Bot を一発で起動:
 
 ```bash
-npm start
+# .env に DISCORD_TOKEN を設定後
+docker compose up -d
 ```
 
 ## スラッシュコマンド
 
 | コマンド | 説明 |
 |---------|------|
-| `/join` | Bot をあなたのボイスチャンネルに参加させる |
-| `/leave` | Bot をボイスチャンネルから退出させる |
-| `/speaker <id>` | 話者を変更する |
-| `/speed <値>` | 読み上げ速度を変更する（0.5〜2.0） |
-| `/dict add <単語> <読み>` | 辞書にエントリを追加 |
-| `/dict remove <単語>` | 辞書からエントリを削除 |
-| `/dict list` | 辞書の一覧を表示 |
+| `/join` | ボイスチャンネルに参加 |
+| `/leave` | ボイスチャンネルから退出 |
+| `/speaker` | 読み上げ話者を変更 |
+| `/speed` | 読み上げ速度を変更 (0.5x - 2.0x) |
+| `/dict add <word> <reading>` | 辞書にエントリ追加 |
+| `/dict remove <word>` | 辞書からエントリ削除 |
+| `/dict list` | 辞書の一覧表示 |
+| `/skip` | 現在の読み上げをスキップ |
+| `/queue` | キューの状態を表示 |
+| `/emotion on` | 感情分析を有効化 |
+| `/emotion off` | 感情分析を無効化 |
+| `/emotion test <text>` | テキストの感情分析結果を確認 |
 
-## 話者一覧
+## コマンド登録
 
-| ID | 話者 |
-|----|------|
-| 0 | 四国めたん（あまあま） |
-| 1 | ずんだもん（あまあま） |
-| 2 | 四国めたん（ノーマル） |
-| 3 | ずんだもん（ノーマル）**← デフォルト** |
-| 4 | 四国めたん（セクシー） |
-| 5 | ずんだもん（セクシー） |
-| 6 | 四国めたん（ツンツン） |
-| 7 | ずんだもん（ツンツン） |
-| 8 | 春日部つむぎ（ノーマル） |
-| 10 | 雨晴はう（ノーマル） |
-| 11 | 波音リツ（ノーマル） |
-| 14 | 冥鳴ひまり（ノーマル） |
-| 20 | もち子さん（ノーマル） |
+スラッシュコマンドの初回登録 / 更新:
+
+```bash
+node dist/deploy-commands.js
+```
 
 ## 環境変数
 
-| 変数 | デフォルト | 説明 |
-|------|----------|------|
-| `DISCORD_TOKEN` | (必須) | Discord Bot トークン |
-| `CLIENT_ID` | (必須) | Discord アプリケーション ID |
-| `VOICEVOX_URL` | `http://localhost:50021` | VOICEVOX API の URL |
-| `DEFAULT_SPEAKER` | `3` | デフォルト話者 ID |
-| `DEFAULT_SPEED` | `1.2` | デフォルト速度 |
-| `MAX_TEXT_LENGTH` | `200` | 読み上げ最大文字数 |
-| `AUTO_JOIN` | `true` | メッセージ送信時の自動参加 |
-
-## テキストフィルタ
-
-読み上げ前に以下の変換が自動適用されます:
-
-- URL → 「URL省略」
-- コードブロック → 「コード省略」
-- インラインコード → 「コード」
-- スポイラー → 「ネタバレ」
-- カスタム絵文字 → 名前のみ
-- メンション → 除去
-- 連続文字（wwwww）→ 圧縮（www）
+| 変数 | 必須 | デフォルト | 説明 |
+|------|:----:|-----------|------|
+| `DISCORD_TOKEN` | Yes | - | Discord Bot トークン |
+| `CLIENT_ID` | Yes* | - | コマンド登録時に必要 (*初回のみ) |
+| `VOICEVOX_URL` | No | `http://localhost:50021` | VOICEVOX API URL |
+| `AUTO_JOIN` | No | `true` | VC自動参加 |
 
 ## 技術スタック
 
-- **TypeScript** + ESM
-- **discord.js** v14
-- **@discordjs/voice** v0.19
-- **VOICEVOX** API
-- **better-sqlite3**（設定・辞書の永続化）
+- **Runtime**: Node.js 20+
+- **Language**: TypeScript (ESM, strict mode)
+- **Discord**: discord.js v14, @discordjs/voice v0.19
+- **TTS**: VOICEVOX Engine API
+- **DB**: SQLite (better-sqlite3) - ユーザー設定・辞書の永続化
+- **Container**: Docker + Docker Compose
 
-## ライセンス
+## 開発
+
+```bash
+# 開発モード (tsx hot reload)
+npm run dev
+
+# 型チェック
+npm run typecheck
+
+# lint
+npm run lint
+```
+
+## License
 
 MIT
+
+---
+
+> Built with [VOICEVOX](https://voicevox.hiroshiba.jp/) - Free Japanese TTS Engine

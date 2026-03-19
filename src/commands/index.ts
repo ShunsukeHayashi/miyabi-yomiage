@@ -8,10 +8,13 @@ import * as leave from "./leave.js";
 import * as speaker from "./speaker.js";
 import * as speed from "./speed.js";
 import * as dict from "./dict.js";
+import * as skip from "./skip.js";
+import * as queue from "./queue.js";
+import * as emotion from "./emotion.js";
 
 export type Command = {
   data: SharedSlashCommand;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 };
 
-export const commands: Command[] = [join, leave, speaker, speed, dict];
+export const commands: Command[] = [join, leave, speaker, speed, dict, skip, queue, emotion];

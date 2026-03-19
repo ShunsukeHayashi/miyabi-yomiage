@@ -48,6 +48,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     speaker_id: speakerId,
     speed: existing?.speed ?? null,
     nickname: existing?.nickname ?? null,
+    emotion_enabled: existing?.emotion_enabled ?? 1,
   });
 
   await interaction.reply({

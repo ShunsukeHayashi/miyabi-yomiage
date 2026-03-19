@@ -4,3 +4,7 @@ data/
 .env
 *.db
 *.sqlite
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+.DS_Store

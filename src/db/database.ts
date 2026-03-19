@@ -31,6 +31,7 @@ db.exec(`
     speaker_id INTEGER DEFAULT NULL,
     speed REAL DEFAULT NULL,
     nickname TEXT DEFAULT NULL,
+    emotion_enabled INTEGER DEFAULT 1,
     PRIMARY KEY (guild_id, user_id)
   );
 
@@ -57,6 +58,7 @@ export type UserSettings = {
   speaker_id: number | null;
   speed: number | null;
   nickname: string | null;
+  emotion_enabled: number;
 };
 
 // サーバー設定
@@ -150,6 +152,33 @@ export function setDictionaryEntry(guildId: string, word: string, reading: strin
 export function deleteDictionaryEntry(guildId: string, word: string): boolean {
   const result = deleteDictStmt.run(guildId, word);
   return result.changes > 0;
+}
+
+// 感情分析 ON/OFF
+export function getEmotionEnabled(guildId: string, userId: string): boolean {
+  const row = db.prepare<[string, string], { emotion_enabled: number }>(
+    "SELECT emotion_enabled FROM user_settings WHERE guild_id = ? AND user_id = ?",
+  ).get(guildId, userId);
+  return row?.emotion_enabled !== 0; // デフォルト有効
+}
+
+export function setEmotionEnabled(guildId: string, userId: string, enabled: boolean): void {
+  db.prepare(`
+    INSERT INTO user_settings (guild_id, user_id, emotion_enabled)
+    VALUES (?, ?, ?)
+    ON CONFLICT(guild_id, user_id) DO UPDATE SET emotion_enabled = excluded.emotion_enabled
+  `).run(guildId, userId, enabled ? 1 : 0);
+}
+
+// 既存DBのマイグレーション（emotion_enabled カラム追加）
+try {
+  db.exec("ALTER TABLE user_settings ADD COLUMN emotion_enabled INTEGER DEFAULT 1");
+  console.log("[db] Migration: emotion_enabled column added");
+} catch (err: unknown) {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (!msg.includes("duplicate column")) {
+    console.warn("[db] Migration unexpected error:", msg);
+  }
 }
 
 export function closeDatabase(): void {
