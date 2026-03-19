@@ -17,6 +17,13 @@ import { analyzeEmotion } from "../emotion/analyzer.js";
 import { resolveStyleId } from "../emotion/style-map.js";
 // node:stream is used by bufferToReadable in tts/voicevox.ts
 
+// Voice管理定数
+const MAX_QUEUE_SIZE = 50;
+const VOICE_CONNECT_TIMEOUT_MS = 30_000;
+const VOICE_RECONNECT_TIMEOUT_MS = 5_000;
+const PENDING_CONNECT_TIMEOUT_MS = 35_000;
+const QUEUE_RETRY_DELAY_MS = 100;
+
 type QueueItem = {
   text: string;
   speaker: number;
@@ -66,13 +73,12 @@ export async function joinChannel(channel: VoiceBasedChannel): Promise<GuildVoic
     return pending;
   }
 
-  const CONNECT_TIMEOUT_MS = 35_000; // connectToChannel内の30s + バッファ
   const promise = connectToChannel(channel);
   pendingConnections.set(guildId, promise);
 
   try {
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("接続タイムアウト（pendingConnections保護）")), CONNECT_TIMEOUT_MS),
+      setTimeout(() => reject(new Error("接続タイムアウト（pendingConnections保護）")), PENDING_CONNECT_TIMEOUT_MS),
     );
     return await Promise.race([promise, timeoutPromise]);
   } finally {
@@ -114,7 +120,7 @@ async function connectToChannel(channel: VoiceBasedChannel): Promise<GuildVoiceS
 
   // 接続待機
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+    await entersState(connection, VoiceConnectionStatus.Ready, VOICE_CONNECT_TIMEOUT_MS);
   } catch {
     console.error(`[voice] 接続タイムアウト — 最終ステート: ${connection.state.status}`);
     if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
@@ -138,8 +144,8 @@ async function connectToChannel(channel: VoiceBasedChannel): Promise<GuildVoiceS
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
       await Promise.race([
-        entersState(connection, VoiceConnectionStatus.Signalling, 5_000),
-        entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
+        entersState(connection, VoiceConnectionStatus.Signalling, VOICE_RECONNECT_TIMEOUT_MS),
+        entersState(connection, VoiceConnectionStatus.Connecting, VOICE_RECONNECT_TIMEOUT_MS),
       ]);
     } catch {
       if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
@@ -186,12 +192,20 @@ export async function enqueueMessage(
 
   if (shouldSkip(text)) return;
 
+  // 入力バリデーション
+  if (text.length > 5000) {
+    console.warn(`[voice] テキストが長すぎます (${text.length}文字) guild=${guildId} — スキップ`);
+    return;
+  }
+
   const serverSettings = getServerSettings(guildId);
   const userSettings = userId ? getUserSettings(guildId, userId) : null;
 
   // 話者・速度の決定（ユーザー設定 > サーバー設定）
   const baseSpeaker = userSettings?.speaker_id ?? serverSettings.speaker_id;
   const speed = userSettings?.speed ?? serverSettings.speed;
+  // 速度の範囲制限（VOICEVOX: 0.5〜2.0）
+  const clampedSpeed = Math.max(0.5, Math.min(2.0, speed));
 
   // テキスト前処理
   let processedText = filterText(text);
@@ -219,13 +233,12 @@ export async function enqueueMessage(
   }
 
   // キューサイズ制限（メモリ保護）
-  const MAX_QUEUE_SIZE = 50;
   if (state.queue.length >= MAX_QUEUE_SIZE) {
     console.warn(`[voice] キュー上限到達 (${MAX_QUEUE_SIZE}) guild=${guildId} — 古いメッセージを破棄`);
     state.queue.shift();
   }
 
-  state.queue.push({ text: processedText, speaker, speed });
+  state.queue.push({ text: processedText, speaker, speed: clampedSpeed });
   if (!state.playing) {
     await processQueue(guildId);
   }
@@ -251,6 +264,6 @@ async function processQueue(guildId: string): Promise<void> {
     console.error("[voice] TTS error:", err);
     state.playing = false;
     // 非同期で次のアイテムを処理（スタックオーバーフロー防止）
-    setTimeout(() => processQueue(guildId).catch(console.error), 100);
+    setTimeout(() => processQueue(guildId).catch(console.error), QUEUE_RETRY_DELAY_MS);
   }
 }

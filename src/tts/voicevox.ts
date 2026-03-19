@@ -3,6 +3,11 @@ import { Readable } from "node:stream";
 
 const BASE_URL = config.voicevox.url;
 
+const MAX_TTS_RETRIES = 2;
+const TTS_RETRY_DELAY_MS = 500;
+const AUDIO_QUERY_TIMEOUT_MS = 10_000;
+const SYNTHESIS_TIMEOUT_MS = 30_000;
+
 type AudioQuery = Record<string, unknown>;
 
 export async function createAudioQuery(
@@ -10,7 +15,7 @@ export async function createAudioQuery(
   speaker: number = config.voicevox.defaultSpeaker,
 ): Promise<AudioQuery> {
   const url = `${BASE_URL}/audio_query?text=${encodeURIComponent(text)}&speaker=${speaker}`;
-  const res = await fetch(url, { method: "POST", signal: AbortSignal.timeout(10_000) });
+  const res = await fetch(url, { method: "POST", signal: AbortSignal.timeout(AUDIO_QUERY_TIMEOUT_MS) });
   if (!res.ok) {
     throw new Error(`VOICEVOX audio_query failed: ${res.status} ${res.statusText}`);
   }
@@ -30,7 +35,7 @@ export async function synthesis(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(modifiedQuery),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(SYNTHESIS_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`VOICEVOX synthesis failed: ${res.status} ${res.statusText}`);
@@ -38,9 +43,6 @@ export async function synthesis(
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
-
-const MAX_TTS_RETRIES = 2;
-const TTS_RETRY_DELAY_MS = 500;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

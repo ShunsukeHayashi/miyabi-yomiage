@@ -53,6 +53,24 @@ const SAD_PATTERNS = [
   /orz/i,
 ];
 
+// スコアリング定数
+const KEYWORD_SCORE = {
+  happy: 1.5,
+  angry: 2.0,
+  sad: 1.5,
+  whisper: 2.0,
+} as const;
+
+const PATTERN_SCORE = 1.0;
+
+const EMOJI_SCORE = {
+  happy: 1.0,
+  sad: 1.0,
+  angry: 1.5,
+} as const;
+
+const EMOTION_THRESHOLD = 2.0;
+
 // 絵文字カウント（Unicode安全）
 function countEmoji(text: string, emojiSet: string[]): number {
   let count = 0;
@@ -82,38 +100,36 @@ function calculateScores(text: string): EmotionScore {
 
   // キーワードマッチ
   for (const kw of HAPPY_KEYWORDS) {
-    if (lower.includes(kw.toLowerCase())) scores.happy += 1.5;
+    if (lower.includes(kw.toLowerCase())) scores.happy += KEYWORD_SCORE.happy;
   }
   for (const kw of ANGRY_KEYWORDS) {
-    if (lower.includes(kw.toLowerCase())) scores.angry += 2.0;
+    if (lower.includes(kw.toLowerCase())) scores.angry += KEYWORD_SCORE.angry;
   }
   for (const kw of SAD_KEYWORDS) {
-    if (lower.includes(kw.toLowerCase())) scores.sad += 1.5;
+    if (lower.includes(kw.toLowerCase())) scores.sad += KEYWORD_SCORE.sad;
   }
   for (const kw of WHISPER_KEYWORDS) {
-    if (lower.includes(kw.toLowerCase())) scores.whisper += 2.0;
+    if (lower.includes(kw.toLowerCase())) scores.whisper += KEYWORD_SCORE.whisper;
   }
 
   // パターンマッチ
   for (const pat of HAPPY_PATTERNS) {
-    if (pat.test(text)) scores.happy += 1.0;
+    if (pat.test(text)) scores.happy += PATTERN_SCORE;
   }
   for (const pat of ANGRY_PATTERNS) {
-    if (pat.test(text)) scores.angry += 1.0;
+    if (pat.test(text)) scores.angry += PATTERN_SCORE;
   }
   for (const pat of SAD_PATTERNS) {
-    if (pat.test(text)) scores.sad += 1.0;
+    if (pat.test(text)) scores.sad += PATTERN_SCORE;
   }
 
   // 絵文字カウント
-  scores.happy += countEmoji(text, HAPPY_EMOJI) * 1.0;
-  scores.sad += countEmoji(text, SAD_EMOJI) * 1.0;
-  scores.angry += countEmoji(text, ANGRY_EMOJI) * 1.5;
+  scores.happy += countEmoji(text, HAPPY_EMOJI) * EMOJI_SCORE.happy;
+  scores.sad += countEmoji(text, SAD_EMOJI) * EMOJI_SCORE.sad;
+  scores.angry += countEmoji(text, ANGRY_EMOJI) * EMOJI_SCORE.angry;
 
   return scores;
 }
-
-const THRESHOLD = 2.0;
 
 export function analyzeEmotion(text: string): Emotion {
   const scores = calculateScores(text);
@@ -129,7 +145,7 @@ export function analyzeEmotion(text: string): Emotion {
     }
   }
 
-  return maxScore >= THRESHOLD ? maxEmotion : "normal";
+  return maxScore >= EMOTION_THRESHOLD ? maxEmotion : "normal";
 }
 
 export function analyzeEmotionDetail(text: string): EmotionResult {
