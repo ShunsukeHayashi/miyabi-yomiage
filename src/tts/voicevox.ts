@@ -39,6 +39,13 @@ export async function synthesis(
   return Buffer.from(arrayBuffer);
 }
 
+const MAX_TTS_RETRIES = 2;
+const TTS_RETRY_DELAY_MS = 500;
+
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function textToSpeech(
   text: string,
   speaker?: number,
@@ -46,8 +53,21 @@ export async function textToSpeech(
 ): Promise<Buffer> {
   const spk = speaker ?? config.voicevox.defaultSpeaker;
   const spd = speed ?? config.voicevox.defaultSpeed;
-  const query = await createAudioQuery(text, spk);
-  return synthesis(query, spk, spd);
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= MAX_TTS_RETRIES; attempt++) {
+    try {
+      const query = await createAudioQuery(text, spk);
+      return await synthesis(query, spk, spd);
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_TTS_RETRIES) {
+        console.warn(`[tts] リトライ ${attempt + 1}/${MAX_TTS_RETRIES}:`, err instanceof Error ? err.message : err);
+        await sleep(TTS_RETRY_DELAY_MS * (attempt + 1));
+      }
+    }
+  }
+  throw lastError;
 }
 
 export function bufferToReadable(buf: Buffer): Readable {

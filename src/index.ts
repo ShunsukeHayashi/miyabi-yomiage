@@ -39,7 +39,7 @@ client.on(Events.InteractionCreate, async (interaction: Interaction) => {
   try {
     await command.execute(interaction);
   } catch (err) {
-    console.error(`[command] ${interaction.commandName} error:`, err);
+    console.error(`[bot:command] ${interaction.commandName} error:`, err);
     const reply = {
       content: "コマンドの実行中にエラーが発生しました。",
       ephemeral: true,
@@ -76,9 +76,9 @@ client.on(Events.MessageCreate, async (message: Message) => {
       if (!voiceState) {
         try {
           await joinChannel(message.member.voice.channel);
-          console.log(`[auto-join] ${message.guild.name} / ${message.member.voice.channel.name}`);
+          console.log(`[bot:auto-join] ${message.guild.name} / ${message.member.voice.channel.name}`);
         } catch (err) {
-          console.error("[auto-join] Error:", err);
+          console.error("[bot:auto-join] Error:", err);
           return;
         }
       }
@@ -98,7 +98,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
   try {
     await enqueueMessage(guildId, message.content, message.author.id, displayName);
   } catch (err) {
-    console.error("[message] enqueue error:", err);
+    console.error("[bot:message] enqueue error:", err);
   }
 });
 
@@ -115,7 +115,7 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
       // Bot以外のメンバーが残っているか確認
       const members = oldState.channel.members.filter((m) => !m.user.bot);
       if (members.size === 0) {
-        console.log(`[auto-leave] ${oldState.guild.name} / ${oldState.channel.name} — 空になったため退出`);
+        console.log(`[bot:auto-leave] ${oldState.guild.name} / ${oldState.channel.name} — 空になったため退出`);
         leaveChannel(guildId);
       }
     }
@@ -124,16 +124,16 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
 
 // 起動
 client.once(Events.ClientReady, async (readyClient) => {
-  console.log(`[ready] ${readyClient.user.tag} としてログイン`);
-  console.log(`[ready] ${readyClient.guilds.cache.size} サーバーに参加中`);
+  console.log(`[bot] ${readyClient.user.tag} としてログイン`);
+  console.log(`[bot] ${readyClient.guilds.cache.size} サーバーに参加中`);
 
   // VOICEVOX ヘルスチェック
   const healthy = await checkHealth();
   if (healthy) {
-    console.log("[ready] VOICEVOX: 接続OK");
+    console.log("[bot] VOICEVOX: 接続OK");
     await initStyleMap();
   } else {
-    console.warn("[ready] VOICEVOX: 接続失敗 — 読み上げが動作しません");
+    console.warn("[bot] VOICEVOX: 接続失敗 — 読み上げが動作しません");
   }
 
   // 起動時に人がいるVCへ自動参加（キャッシュ完了を待つ）
@@ -147,9 +147,9 @@ client.once(Events.ClientReady, async (readyClient) => {
           try {
             await joinChannel(voiceState.channel);
             const humans = voiceState.channel.members.filter((m) => !m.user.bot).size;
-            console.log(`[startup-join] ${guild.name} / ${voiceState.channel.name} (${humans}人)`);
+            console.log(`[bot:startup-join] ${guild.name} / ${voiceState.channel.name} (${humans}人)`);
           } catch (err) {
-            console.error(`[startup-join] ${guild.name} 失敗:`, err);
+            console.error(`[bot:startup-join] ${guild.name} 失敗:`, err);
           }
           break; // 1サーバー1VC
         }
@@ -160,12 +160,12 @@ client.once(Events.ClientReady, async (readyClient) => {
 
 // 未処理のPromise rejectionをキャッチ
 process.on("unhandledRejection", (err) => {
-  console.error("[unhandledRejection]", err);
+  console.error("[bot:error]", err);
 });
 
 // graceful shutdown
 function shutdown(signal: string) {
-  console.log(`[shutdown] ${signal} received`);
+  console.log(`[bot:shutdown] ${signal} received`);
   closeDatabase();
   client.destroy();
   process.exit(0);
@@ -176,7 +176,7 @@ process.on("SIGTERM", () => shutdown("SIGTERM"));
 
 // 起動
 if (!config.discord.token) {
-  console.error("[error] DISCORD_TOKEN が設定されていません。.env ファイルを確認してください。");
+  console.error("[bot:error] DISCORD_TOKEN が設定されていません。.env ファイルを確認してください。");
   process.exit(1);
 }
 

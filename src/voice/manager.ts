@@ -66,11 +66,15 @@ export async function joinChannel(channel: VoiceBasedChannel): Promise<GuildVoic
     return pending;
   }
 
+  const CONNECT_TIMEOUT_MS = 35_000; // connectToChannel内の30s + バッファ
   const promise = connectToChannel(channel);
   pendingConnections.set(guildId, promise);
 
   try {
-    return await promise;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("接続タイムアウト（pendingConnections保護）")), CONNECT_TIMEOUT_MS),
+    );
+    return await Promise.race([promise, timeoutPromise]);
   } finally {
     pendingConnections.delete(guildId);
   }
@@ -161,11 +165,14 @@ export function leaveChannel(guildId: string): boolean {
 
 function applyDictionary(text: string, guildId: string): string {
   const dict = getDictionary(guildId);
-  let result = text;
-  for (const [word, reading] of dict) {
-    result = result.replaceAll(word, reading);
-  }
-  return result;
+  if (dict.size === 0) return text;
+
+  // 長いワードから先にマッチさせる（部分一致の誤置換を防止）
+  const words = [...dict.keys()].sort((a, b) => b.length - a.length);
+  const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const pattern = new RegExp(escaped.join("|"), "g");
+
+  return text.replace(pattern, (match) => dict.get(match) ?? match);
 }
 
 export async function enqueueMessage(
@@ -214,6 +221,7 @@ export async function enqueueMessage(
   // キューサイズ制限（メモリ保護）
   const MAX_QUEUE_SIZE = 50;
   if (state.queue.length >= MAX_QUEUE_SIZE) {
+    console.warn(`[voice] キュー上限到達 (${MAX_QUEUE_SIZE}) guild=${guildId} — 古いメッセージを破棄`);
     state.queue.shift();
   }
 

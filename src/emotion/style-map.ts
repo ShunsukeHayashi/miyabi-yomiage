@@ -28,11 +28,65 @@ type VoicevoxSpeaker = {
   styles: { name: string; id: number }[];
 };
 
+// VOICEVOX 障害時のハードコードフォールバック
+function getDefaultStyleMap(): EmotionStyleMap {
+  const map: EmotionStyleMap = new Map();
+
+  // ずんだもん: ノーマル(3), あまあま(1), ツンツン(7), ささやき(22)
+  const zundamonIds = [1, 3, 7, 22];
+  const zundamonEmotions: [Emotion, number][] = [
+    ["happy", 1],
+    ["angry", 7],
+    ["whisper", 22],
+  ];
+  for (const id of zundamonIds) {
+    const emotionMap = new Map<Emotion, number>();
+    for (const [emotion, targetId] of zundamonEmotions) {
+      if (targetId !== id) emotionMap.set(emotion, targetId);
+    }
+    if (emotionMap.size > 0) map.set(id, emotionMap);
+  }
+
+  // 四国めたん: ノーマル(2), あまあま(0), ツンツン(6), ささやき(36)
+  const metanIds = [0, 2, 6, 36];
+  const metanEmotions: [Emotion, number][] = [
+    ["happy", 0],
+    ["angry", 6],
+    ["whisper", 36],
+  ];
+  for (const id of metanIds) {
+    const emotionMap = new Map<Emotion, number>();
+    for (const [emotion, targetId] of metanEmotions) {
+      if (targetId !== id) emotionMap.set(emotion, targetId);
+    }
+    if (emotionMap.size > 0) map.set(id, emotionMap);
+  }
+
+  return map;
+}
+
+function getDefaultSpeakerInfo(): Map<number, { character: string; style: string }> {
+  const info = new Map<number, { character: string; style: string }>();
+  info.set(0, { character: "四国めたん", style: "あまあま" });
+  info.set(1, { character: "ずんだもん", style: "あまあま" });
+  info.set(2, { character: "四国めたん", style: "ノーマル" });
+  info.set(3, { character: "ずんだもん", style: "ノーマル" });
+  info.set(6, { character: "四国めたん", style: "ツンツン" });
+  info.set(7, { character: "ずんだもん", style: "ツンツン" });
+  info.set(8, { character: "春日部つむぎ", style: "ノーマル" });
+  info.set(22, { character: "ずんだもん", style: "ささやき" });
+  info.set(36, { character: "四国めたん", style: "ささやき" });
+  return info;
+}
+
 export async function initStyleMap(): Promise<void> {
   try {
     const res = await fetch(`${config.voicevox.url}/speakers`);
     if (!res.ok) {
       console.warn("[style-map] /speakers API failed:", res.status);
+      console.warn("[style-map] ハードコードのデフォルトマップにフォールバックします");
+      styleMap = getDefaultStyleMap();
+      speakerInfo = getDefaultSpeakerInfo();
       return;
     }
 
@@ -77,6 +131,9 @@ export async function initStyleMap(): Promise<void> {
     console.log(`[style-map] ${speakerInfo.size} スタイル読み込み完了（${newMap.size} マッピング）`);
   } catch (err) {
     console.warn("[style-map] 初期化エラー:", err);
+    console.warn("[style-map] ハードコードのデフォルトマップにフォールバックします");
+    styleMap = getDefaultStyleMap();
+    speakerInfo = getDefaultSpeakerInfo();
   }
 }
 
